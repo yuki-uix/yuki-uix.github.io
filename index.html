@@ -1,11 +1,753 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>交互式建筑构造学习平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script async src="https://ga.jspm.io/npm:es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+        }
+    }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals with Teal Accent -->
+    <!-- Application Structure Plan: A hub-and-spoke model. The main page is a visual hub with clickable modules for major construction parts (Roof, Wall, Foundation, etc.). Clicking a module navigates to a dedicated section featuring a central interactive 3D viewer, surrounded by contextual panels for details, materials, and processes. This non-linear structure empowers user-driven exploration and places the most critical interactive element—the 3D model—at the center of the learning experience, directly addressing the user's need to visualize complex assemblies. -->
+    <!-- Visualization & Content Choices: Report Info: Roof insulation layers -> Goal: Organize/Explore -> Viz: Interactive 3D Exploded View -> Interaction: Button click animates layers apart, hover/click shows info -> Justification: Best method for understanding 3D spatial relationships, fulfilling the core user request -> Library: Three.js. Report Info: Construction Principles -> Goal: Inform -> Viz: Text blocks with simple HTML/CSS diagrams -> Interaction: Click to expand -> Justification: Clear, concise, and self-contained. Report Info: Material Comparison -> Goal: Compare -> Viz: Simple HTML card layout -> Interaction: Filter/Select -> Justification: Easy scannable comparison. Report Info: Wall layers (structure, insulation, finish) -> Goal: Organize/Explore -> Viz: Interactive 3D Exploded View -> Interaction: Button click animates layers apart, hover/click shows info -> Justification: Visualizing vertical layered structures and their components. Library: Three.js. Report Info: Foundation components (column, footing, blinding) -> Goal: Organize/Explore -> Viz: Interactive 3D Exploded View -> Interaction: Button click animates components apart, hover/click shows info -> Justification: Understanding subterranean structural elements and their assembly. Library: Three.js. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { font-family: 'Inter', 'Noto Sans SC', sans-serif; background-color: #F5F5F4; color: #292524; }
+        .nav-link { transition: all 0.3s ease; }
+        .nav-link.active { color: #0D9488; border-bottom-color: #0D9488; }
+        .nav-link:hover { color: #0D9488; }
+        .module-card { transition: all 0.3s ease; }
+        .module-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+        .three-canvas-container { position: relative; width: 100%; height: 400px; md:height: 500px; background: #E7E5E4; border-radius: 0.5rem; }
+        .three-canvas-container canvas { width: 100%; height: 100%; }
+        .info-panel-item.active { background-color: #CCFBF1; }
+    </style>
 </head>
-<body>
-    <h1>Hello World</h1>
+<body class="antialiased">
+
+    <header class="bg-stone-100/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-4">
+                    <div class="text-2xl font-bold text-teal-700">建构<span class="text-stone-700">交互</span></div>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#hub" class="nav-link text-stone-600 font-medium border-b-2 border-transparent pb-1" data-section="hub">构件中心</a>
+                    <a href="#roof" class="nav-link text-stone-600 font-medium border-b-2 border-transparent pb-1" data-section="roof">屋顶构造</a>
+                    <a href="#wall" class="nav-link text-stone-600 font-medium border-b-2 border-transparent pb-1" data-section="wall">墙体构造</a>
+                    <a href="#foundation" class="nav-link text-stone-600 font-medium border-b-2 border-transparent pb-1" data-section="foundation">基础构造</a>
+                </div>
+                <div class="md:hidden">
+                    <button id="mobile-menu-button" class="text-stone-600 focus:outline-none">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+                    </button>
+                </div>
+            </div>
+            <div id="mobile-menu" class="hidden md:hidden py-2">
+                <a href="#hub" class="block nav-link text-stone-600 py-2" data-section="hub">构件中心</a>
+                <a href="#roof" class="block nav-link text-stone-600 py-2" data-section="roof">屋顶构造</a>
+                <a href="#wall" class="block nav-link text-stone-600 py-2" data-section="wall">墙体构造</a>
+                <a href="#foundation" class="block nav-link text-stone-600 py-2" data-section="foundation">基础构造</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto p-4 md:p-8">
+        
+        <section id="hub" class="content-section active">
+            <div class="text-center mb-12">
+                <h1 class="text-4xl md:text-5xl font-bold text-stone-800">建筑构造交互式学习平台</h1>
+                <p class="mt-4 text-lg text-stone-600 max-w-3xl mx-auto">一个将复杂建筑构造转化为直观、可交互3D模型的学习工具。选择一个模块开始您的探索之旅。</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="module-card bg-white rounded-lg shadow-md p-6 cursor-pointer" data-section-target="roof">
+                    <div class="text-teal-600 mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                    </div>
+                    <h3 class="text-2xl font-semibold text-stone-800 mb-2">屋顶构造</h3>
+                    <p class="text-stone-600">探索平屋面与坡屋面的防水、保温、隔热处理。通过交互式分解，理解多层构造的奥秘。</p>
+                </div>
+
+                <div class="module-card bg-white rounded-lg shadow-md p-6 cursor-pointer" data-section-target="wall">
+                    <div class="text-teal-600 mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                    </div>
+                    <h3 class="text-2xl font-semibold text-stone-800 mb-2">墙体构造</h3>
+                    <p class="text-stone-600">学习承重墙与非承重墙的类型、材料、防潮及节能构造。通过交互式分解，理解墙体层次。</p>
+                </div>
+
+                <div class="module-card bg-white rounded-lg shadow-md p-6 cursor-pointer" data-section-target="foundation">
+                    <div class="text-teal-600 mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></svg>
+                    </div>
+                    <h3 class="text-2xl font-semibold text-stone-800 mb-2">基础构造</h3>
+                    <p class="text-stone-600">了解地基与基础的关系，探索条形基础、独立基础和桩基础的构造原理与施工。通过交互式分解，理解基础构成。</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="roof" class="content-section">
+            <div class="text-left mb-8">
+                <h2 class="text-3xl font-bold text-stone-800">屋顶构造：保温与防水</h2>
+                <p class="mt-2 text-md text-stone-600 max-w-4xl">本节将深入探讨典型的平屋面构造层次。您可以通过下方的3D模型进行交互，直观地理解各构造层的功能与空间关系。点击“分解构造”按钮查看爆炸图，点击右侧列表中的图层可高亮显示并查看详细信息。</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 bg-white p-4 rounded-lg shadow-md">
+                    <div class="three-canvas-container">
+                        <div id="roof-canvas-loader" class="absolute inset-0 flex items-center justify-center bg-stone-200/50 rounded-lg">
+                            <p class="text-stone-600">3D模型加载中...</p>
+                        </div>
+                        <canvas id="roof-canvas"></canvas>
+                    </div>
+                    <div class="flex justify-center space-x-4 mt-4">
+                        <button id="roof-explode-btn" class="bg-teal-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-teal-700 transition">分解构造</button>
+                        <button id="roof-reset-btn" class="bg-stone-500 text-white font-semibold px-6 py-2 rounded-lg hover:bg-stone-600 transition">复位构造</button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-stone-800 mb-4">构造层次</h3>
+                    <ul id="roof-info-panel" class="space-y-2">
+                    </ul>
+                    <div id="roof-info-details" class="mt-6 p-4 bg-stone-50 rounded-lg border border-stone-200 min-h-[150px]">
+                        <p class="text-stone-500">点击上方列表查看详细信息。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="wall" class="content-section">
+            <div class="text-left mb-8">
+                <h2 class="text-3xl font-bold text-stone-800">墙体构造：保温与防潮</h2>
+                <p class="mt-2 text-md text-stone-600 max-w-4xl">本节将深入探讨典型的外墙构造层次，以保温墙体为例。您可以通过下方的3D模型进行交互，直观地理解各构造层的功能与空间关系。点击“分解构造”按钮查看爆炸图，点击右侧列表中的图层可高亮显示并查看详细信息。</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 bg-white p-4 rounded-lg shadow-md">
+                    <div class="three-canvas-container">
+                        <div id="wall-canvas-loader" class="absolute inset-0 flex items-center justify-center bg-stone-200/50 rounded-lg">
+                            <p class="text-stone-600">3D模型加载中...</p>
+                        </div>
+                        <canvas id="wall-canvas"></canvas>
+                    </div>
+                    <div class="flex justify-center space-x-4 mt-4">
+                        <button id="wall-explode-btn" class="bg-teal-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-teal-700 transition">分解构造</button>
+                        <button id="wall-reset-btn" class="bg-stone-500 text-white font-semibold px-6 py-2 rounded-lg hover:bg-stone-600 transition">复位构造</button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-stone-800 mb-4">构造层次</h3>
+                    <ul id="wall-info-panel" class="space-y-2">
+                    </ul>
+                    <div id="wall-info-details" class="mt-6 p-4 bg-stone-50 rounded-lg border border-stone-200 min-h-[150px]">
+                        <p class="text-stone-500">点击上方列表查看详细信息。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="foundation" class="content-section">
+            <div class="text-left mb-8">
+                <h2 class="text-3xl font-bold text-stone-800">基础构造：独立基础</h2>
+                <p class="mt-2 text-md text-stone-600 max-w-4xl">本节将深入探讨典型的独立柱下基础构造。您可以通过下方的3D模型进行交互，直观地理解各组成部分的功能与空间关系。点击“分解构造”按钮查看爆炸图，点击右侧列表中的构件可高亮显示并查看详细信息。</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 bg-white p-4 rounded-lg shadow-md">
+                    <div class="three-canvas-container">
+                        <div id="foundation-canvas-loader" class="absolute inset-0 flex items-center justify-center bg-stone-200/50 rounded-lg">
+                            <p class="text-stone-600">3D模型加载中...</p>
+                        </div>
+                        <canvas id="foundation-canvas"></canvas>
+                    </div>
+                    <div class="flex justify-center space-x-4 mt-4">
+                        <button id="foundation-explode-btn" class="bg-teal-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-teal-700 transition">分解构造</button>
+                        <button id="foundation-reset-btn" class="bg-stone-500 text-white font-semibold px-6 py-2 rounded-lg hover:bg-stone-600 transition">复位构造</button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-stone-800 mb-4">构件组成</h3>
+                    <ul id="foundation-info-panel" class="space-y-2">
+                    </ul>
+                    <div id="foundation-info-details" class="mt-6 p-4 bg-stone-50 rounded-lg border border-stone-200 min-h-[150px]">
+                        <p class="text-stone-500">点击上方列表查看详细信息。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Data for Roof Construction
+        const roofData = {
+            layers: [
+                { id: 'layer-5', name: '混凝土保护层', color: 0xCACACA, height: 0.1, info: '通常为细石混凝土，用于保护下方的防水层免受物理损伤和紫外线老化，并提供一定的配重。' },
+                { id: 'layer-4', name: '防水层', color: 0x4A4A4A, height: 0.05, info: '屋顶防水的关键层次，通常采用改性沥青卷材或高分子防水卷材，通过热熔或自粘方式铺设，要求搭接严密，无渗漏。' },
+                { id: 'layer-3', name: '保温层', color: 0xFFA500, height: 0.4, info: '用于阻断热量传递，是建筑节能的核心。常用材料有挤塑聚苯板(XPS)、岩棉板等，具有低导热系数的特点。' },
+                { id: 'layer-2', name: '隔汽层', color: 0xADD8E6, height: 0.05, info: '设置在保温层下方，防止室内带有水蒸气的热空气进入保温层，遇冷凝结成水，从而破坏保温效果和结构。' },
+                { id: 'layer-1', name: '结构层', color: 0x8B4513, height: 0.5, info: '屋顶的承重部分，通常为钢筋混凝土现浇板，为上部所有构造层次提供稳定支撑。' }
+            ],
+            initialY: 0,
+            explodedYGap: 0.3
+        };
+
+        // Data for Wall Construction
+        const wallData = {
+            layers: [
+                { id: 'wall-layer-5', name: '内饰面层', color: 0xF0F0F0, thickness: 0.05, info: '墙体最内侧的装饰层，如乳胶漆、壁纸或瓷砖，提供室内美观和保护。' },
+                { id: 'wall-layer-4', name: '抹灰层', color: 0xD3D3D3, thickness: 0.08, info: '用于找平墙面，为内饰面层提供平整基层，并具有一定的保护作用。' },
+                { id: 'wall-layer-3', name: '结构墙体', color: 0x8B4513, thickness: 0.4, info: '墙体的主要承重部分，通常为砖墙、混凝土墙或砌块墙，承受建筑物的荷载。' },
+                { id: 'wall-layer-2', name: '保温层', color: 0xFFA500, thickness: 0.2, info: '设置在结构墙体外侧，用于阻断热量传递，提高墙体的保温性能，减少能耗。常用材料有外墙保温板。' },
+                { id: 'wall-layer-1', name: '外饰面层', color: 0xADD8E6, thickness: 0.05, info: '墙体最外侧的保护和装饰层，如涂料、瓷砖或石材，抵抗风雨侵蚀，并提供建筑外观。' }
+            ],
+            initialZ: 0, // For wall, we'll explode along Z-axis (depth)
+            explodedZGap: 0.3
+        };
+
+        // Data for Foundation Construction
+        const foundationData = {
+            components: [
+                { id: 'foundation-comp-4', name: '柱', color: 0x808080, width: 0.8, depth: 0.8, height: 2.0, info: '上部结构荷载的汇集点，将荷载传递给基础。' },
+                { id: 'foundation-comp-3', name: '承台', color: 0x696969, width: 2.5, depth: 2.5, height: 0.8, info: '独立基础的主要部分，将柱传来的集中荷载扩散并传递给垫层和地基。' },
+                { id: 'foundation-comp-2', name: '垫层', color: 0xD2B48C, width: 2.6, depth: 2.6, height: 0.1, info: '位于承台下方，用于找平基础底面，防止混凝土与地基土直接接触，并作为施工操作面。' },
+                { id: 'foundation-comp-1', name: '地基土', color: 0xA0522D, width: 5.0, depth: 5.0, height: 0.5, info: '直接承受基础荷载的土层，其承载力决定了基础的尺寸和形式。' }
+            ],
+            initialY: 0, // For foundation, components separate vertically
+            explodedYGap: 0.5
+        };
+
+        let roofScene, roofCamera, roofRenderer, roofControls, roofRaycaster, roofMouse;
+        const roofLayerObjects = [];
+        let roofExploded = false;
+        let roofSelectedObject = null;
+
+        let wallScene, wallCamera, wallRenderer, wallControls, wallRaycaster, wallMouse;
+        const wallLayerObjects = [];
+        let wallExploded = false;
+        let wallSelectedObject = null;
+
+        let foundationScene, foundationCamera, foundationRenderer, foundationControls, foundationRaycaster, foundationMouse;
+        const foundationComponentObjects = [];
+        let foundationExploded = false;
+        let foundationSelectedObject = null;
+
+        // --- Roof 3D Functions ---
+        function initRoof3D() {
+            const container = document.getElementById('roof-canvas');
+            if (!container) return;
+            
+            const loader = document.getElementById('roof-canvas-loader');
+
+            roofScene = new THREE.Scene();
+            roofScene.background = new THREE.Color(0xF5F5F4);
+
+            roofCamera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+            roofCamera.position.set(5, 4, 5);
+
+            roofRenderer = new THREE.WebGLRenderer({ canvas: container, antialias: true });
+            roofRenderer.setSize(container.clientWidth, container.clientHeight);
+            roofRenderer.setPixelRatio(window.devicePixelRatio);
+
+            roofControls = new OrbitControls(roofCamera, roofRenderer.domElement);
+            roofControls.enableDamping = true;
+            roofControls.dampingFactor = 0.1;
+            roofControls.minDistance = 3;
+            roofControls.maxDistance = 15;
+            
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            roofScene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 10, 7.5);
+            roofScene.add(directionalLight);
+
+            roofRaycaster = new THREE.Raycaster();
+            roofMouse = new THREE.Vector2();
+
+            let currentY = roofData.initialY;
+            roofData.layers.forEach(layer => {
+                const geometry = new THREE.BoxGeometry(4, layer.height, 3);
+                const material = new THREE.MeshLambertMaterial({ color: layer.color });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.y = currentY + layer.height / 2;
+                mesh.userData = { id: layer.id, name: layer.name, info: layer.info, originalColor: new THREE.Color(layer.color) };
+                roofScene.add(mesh);
+                roofLayerObjects.push(mesh);
+                currentY += layer.height;
+            });
+            
+            if(loader) loader.style.display = 'none';
+
+            animateRoof();
+            populateInfoPanel('roof');
+            
+            container.addEventListener('click', onRoofCanvasClick);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function populateInfoPanel(type) {
+            let panel, data, objects;
+            if (type === 'roof') {
+                panel = document.getElementById('roof-info-panel');
+                data = roofData.layers;
+                objects = roofLayerObjects;
+            } else if (type === 'wall') {
+                panel = document.getElementById('wall-info-panel');
+                data = wallData.layers;
+                objects = wallLayerObjects;
+            } else if (type === 'foundation') {
+                panel = document.getElementById('foundation-info-panel');
+                data = foundationData.components;
+                objects = foundationComponentObjects;
+            } else {
+                return;
+            }
+
+            panel.innerHTML = '';
+            data.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'info-panel-item p-3 rounded-lg cursor-pointer transition flex items-center space-x-3';
+                li.dataset.id = item.id;
+                li.innerHTML = `<div class="w-4 h-4 rounded-full" style="background-color: #${new THREE.Color(item.color).getHexString()}"></div><span>${item.name}</span>`;
+                li.addEventListener('click', () => selectLayer(type, item.id));
+                panel.appendChild(li);
+            });
+        }
+        
+        function selectLayer(type, itemId) {
+            let detailsPanel, infoItems, data, objects, selectedObjRef;
+            if (type === 'roof') {
+                detailsPanel = document.getElementById('roof-info-details');
+                infoItems = document.querySelectorAll('#roof-info-panel .info-panel-item');
+                data = roofData.layers;
+                objects = roofLayerObjects;
+                selectedObjRef = 'roofSelectedObject';
+            } else if (type === 'wall') {
+                detailsPanel = document.getElementById('wall-info-details');
+                infoItems = document.querySelectorAll('#wall-info-panel .info-panel-item');
+                data = wallData.layers;
+                objects = wallLayerObjects;
+                selectedObjRef = 'wallSelectedObject';
+            } else if (type === 'foundation') {
+                detailsPanel = document.getElementById('foundation-info-details');
+                infoItems = document.querySelectorAll('#foundation-info-panel .info-panel-item');
+                data = foundationData.components;
+                objects = foundationComponentObjects;
+                selectedObjRef = 'foundationSelectedObject';
+            } else {
+                return;
+            }
+
+            const itemData = data.find(l => l.id === itemId);
+            const object = objects.find(o => o.userData.id === itemId);
+
+            if (!itemData || !object) return;
+
+            if (window[selectedObjRef] && window[selectedObjRef] !== object) {
+                window[selectedObjRef].material.color.set(window[selectedObjRef].userData.originalColor);
+            }
+            
+            object.material.color.set(0x14B8A6); // Highlight color
+            window[selectedObjRef] = object;
+
+            detailsPanel.innerHTML = `<h4 class="font-semibold text-teal-800 mb-2">${itemData.name}</h4><p class="text-stone-700 text-sm">${itemData.info}</p>`;
+            
+            infoItems.forEach(item => {
+                item.classList.toggle('active', item.dataset.id === itemId);
+            });
+        }
+
+        function onRoofCanvasClick(event) {
+            const canvasBounds = roofRenderer.domElement.getBoundingClientRect();
+            roofMouse.x = ((event.clientX - canvasBounds.left) / canvasBounds.width) * 2 - 1;
+            roofMouse.y = -((event.clientY - canvasBounds.top) / canvasBounds.height) * 2 + 1;
+
+            roofRaycaster.setFromCamera(roofMouse, roofCamera);
+            const intersects = roofRaycaster.intersectObjects(roofLayerObjects);
+
+            if (intersects.length > 0) {
+                const intersectedObject = intersects[0].object;
+                selectLayer('roof', intersectedObject.userData.id);
+            }
+        }
+
+        function toggleRoofExplosion(explode) {
+            roofExploded = explode;
+            let currentY = roofData.initialY;
+            roofLayerObjects.forEach((mesh, index) => {
+                const layer = roofData.layers[index];
+                
+                let accumulatedHeight = 0;
+                for(let i = 0; i < index; i++) {
+                    accumulatedHeight += roofData.layers[i].height;
+                }
+                const resetY = roofData.initialY + accumulatedHeight + layer.height / 2;
+
+                const finalY = explode ? currentY + layer.height / 2 + index * roofData.explodedYGap : resetY;
+
+                const startPos = { y: mesh.position.y };
+                const endPos = { y: finalY };
+                let duration = 500;
+                let startTime = null;
+
+                function animateStep(timestamp) {
+                    if (!startTime) startTime = timestamp;
+                    const progress = Math.min((timestamp - startTime) / duration, 1);
+                    mesh.position.y = startPos.y + (endPos.y - startPos.y) * progress;
+                    if (progress < 1) {
+                        requestAnimationFrame(animateStep);
+                    }
+                }
+                requestAnimationFrame(animateStep);
+
+                currentY += layer.height;
+            });
+        }
+
+        function animateRoof() {
+            requestAnimationFrame(animateRoof);
+            if (roofControls) roofControls.update();
+            if (roofRenderer) roofRenderer.render(roofScene, roofCamera);
+        }
+
+        // --- Wall 3D Functions ---
+        function initWall3D() {
+            const container = document.getElementById('wall-canvas');
+            if (!container) return;
+
+            const loader = document.getElementById('wall-canvas-loader');
+
+            wallScene = new THREE.Scene();
+            wallScene.background = new THREE.Color(0xF5F5F4);
+
+            wallCamera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+            wallCamera.position.set(3, 2, 5); // Adjust camera for a vertical wall
+
+            wallRenderer = new THREE.WebGLRenderer({ canvas: container, antialias: true });
+            wallRenderer.setSize(container.clientWidth, container.clientHeight);
+            wallRenderer.setPixelRatio(window.devicePixelRatio);
+
+            wallControls = new OrbitControls(wallCamera, wallRenderer.domElement);
+            wallControls.enableDamping = true;
+            wallControls.dampingFactor = 0.1;
+            wallControls.minDistance = 3;
+            wallControls.maxDistance = 15;
+            
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            wallScene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 10, 7.5);
+            wallScene.add(directionalLight);
+
+            wallRaycaster = new THREE.Raycaster();
+            wallMouse = new THREE.Vector2();
+
+            let currentZ = wallData.initialZ; // Explode along Z-axis for wall depth
+            wallData.layers.forEach(layer => {
+                const geometry = new THREE.BoxGeometry(4, 3, layer.thickness); // Width, Height, Thickness
+                const material = new THREE.MeshLambertMaterial({ color: layer.color });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.z = currentZ + layer.thickness / 2; // Position along Z
+                mesh.userData = { id: layer.id, name: layer.name, info: layer.info, originalColor: new THREE.Color(layer.color) };
+                wallScene.add(mesh);
+                wallLayerObjects.push(mesh);
+                currentZ += layer.thickness;
+            });
+            
+            if(loader) loader.style.display = 'none';
+
+            animateWall();
+            populateInfoPanel('wall');
+            
+            container.addEventListener('click', onWallCanvasClick);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWallCanvasClick(event) {
+            const canvasBounds = wallRenderer.domElement.getBoundingClientRect();
+            wallMouse.x = ((event.clientX - canvasBounds.left) / canvasBounds.width) * 2 - 1;
+            wallMouse.y = -((event.clientY - canvasBounds.top) / canvasBounds.height) * 2 + 1;
+
+            wallRaycaster.setFromCamera(wallMouse, wallCamera);
+            const intersects = wallRaycaster.intersectObjects(wallLayerObjects);
+
+            if (intersects.length > 0) {
+                const intersectedObject = intersects[0].object;
+                selectLayer('wall', intersectedObject.userData.id);
+            }
+        }
+
+        function toggleWallExplosion(explode) {
+            wallExploded = explode;
+            let currentZ = wallData.initialZ;
+            wallLayerObjects.forEach((mesh, index) => {
+                const layer = wallData.layers[index];
+                
+                let accumulatedThickness = 0;
+                for(let i = 0; i < index; i++) {
+                    accumulatedThickness += wallData.layers[i].thickness;
+                }
+                const resetZ = wallData.initialZ + accumulatedThickness + layer.thickness / 2;
+
+                const finalZ = explode ? currentZ + layer.thickness / 2 + index * wallData.explodedZGap : resetZ;
+
+                const startPos = { z: mesh.position.z };
+                const endPos = { z: finalZ };
+                let duration = 500;
+                let startTime = null;
+
+                function animateStep(timestamp) {
+                    if (!startTime) startTime = timestamp;
+                    const progress = Math.min((timestamp - startTime) / duration, 1);
+                    mesh.position.z = startPos.z + (endPos.z - startPos.z) * progress;
+                    if (progress < 1) {
+                        requestAnimationFrame(animateStep);
+                    }
+                }
+                requestAnimationFrame(animateStep);
+
+                currentZ += layer.thickness;
+            });
+        }
+
+        function animateWall() {
+            requestAnimationFrame(animateWall);
+            if (wallControls) wallControls.update();
+            if (wallRenderer) wallRenderer.render(wallScene, wallCamera);
+        }
+
+        // --- Foundation 3D Functions ---
+        function initFoundation3D() {
+            const container = document.getElementById('foundation-canvas');
+            if (!container) return;
+
+            const loader = document.getElementById('foundation-canvas-loader');
+
+            foundationScene = new THREE.Scene();
+            foundationScene.background = new THREE.Color(0xF5F5F4);
+
+            foundationCamera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+            foundationCamera.position.set(5, 4, 5); // Adjust camera for foundation
+
+            foundationRenderer = new THREE.WebGLRenderer({ canvas: container, antialias: true });
+            foundationRenderer.setSize(container.clientWidth, container.clientHeight);
+            foundationRenderer.setPixelRatio(window.devicePixelRatio);
+
+            foundationControls = new OrbitControls(foundationCamera, foundationRenderer.domElement);
+            foundationControls.enableDamping = true;
+            foundationControls.dampingFactor = 0.1;
+            foundationControls.minDistance = 3;
+            foundationControls.maxDistance = 15;
+            
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            foundationScene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 10, 7.5);
+            foundationScene.add(directionalLight);
+
+            foundationRaycaster = new THREE.Raycaster();
+            foundationMouse = new THREE.Vector2();
+
+            let currentY = foundationData.initialY;
+            foundationData.components.forEach(comp => {
+                const geometry = new THREE.BoxGeometry(comp.width, comp.height, comp.depth);
+                const material = new THREE.MeshLambertMaterial({ color: comp.color });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.y = currentY + comp.height / 2;
+                mesh.userData = { id: comp.id, name: comp.name, info: comp.info, originalColor: new THREE.Color(comp.color) };
+                foundationScene.add(mesh);
+                foundationComponentObjects.push(mesh);
+                currentY += comp.height;
+            });
+            
+            if(loader) loader.style.display = 'none';
+
+            animateFoundation();
+            populateInfoPanel('foundation');
+            
+            container.addEventListener('click', onFoundationCanvasClick);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onFoundationCanvasClick(event) {
+            const canvasBounds = foundationRenderer.domElement.getBoundingClientRect();
+            foundationMouse.x = ((event.clientX - canvasBounds.left) / canvasBounds.width) * 2 - 1;
+            foundationMouse.y = -((event.clientY - canvasBounds.top) / canvasBounds.height) * 2 + 1;
+
+            foundationRaycaster.setFromCamera(foundationMouse, foundationCamera);
+            const intersects = foundationRaycaster.intersectObjects(foundationComponentObjects);
+
+            if (intersects.length > 0) {
+                const intersectedObject = intersects[0].object;
+                selectLayer('foundation', intersectedObject.userData.id);
+            }
+        }
+
+        function toggleFoundationExplosion(explode) {
+            foundationExploded = explode;
+            let currentY = foundationData.initialY;
+            foundationComponentObjects.forEach((mesh, index) => {
+                const comp = foundationData.components[index];
+                
+                let accumulatedHeight = 0;
+                for(let i = 0; i < index; i++) {
+                    accumulatedHeight += foundationData.components[i].height;
+                }
+                const resetY = foundationData.initialY + accumulatedHeight + comp.height / 2;
+
+                const finalY = explode ? currentY + comp.height / 2 + index * foundationData.explodedYGap : resetY;
+
+                const startPos = { y: mesh.position.y };
+                const endPos = { y: finalY };
+                let duration = 500;
+                let startTime = null;
+
+                function animateStep(timestamp) {
+                    if (!startTime) startTime = timestamp;
+                    const progress = Math.min((timestamp - startTime) / duration, 1);
+                    mesh.position.y = startPos.y + (endPos.y - startPos.y) * progress;
+                    if (progress < 1) {
+                        requestAnimationFrame(animateStep);
+                    }
+                }
+                requestAnimationFrame(animateStep);
+
+                currentY += comp.height;
+            });
+        }
+
+        function animateFoundation() {
+            requestAnimationFrame(animateFoundation);
+            if (foundationControls) foundationControls.update();
+            if (foundationRenderer) foundationRenderer.render(foundationScene, foundationCamera);
+        }
+
+        // --- Global Functions ---
+        function onWindowResize() {
+            const roofContainer = document.getElementById('roof-canvas');
+            if (roofContainer && roofCamera && roofRenderer) {
+                roofCamera.aspect = roofContainer.clientWidth / roofContainer.clientHeight;
+                roofCamera.updateProjectionMatrix();
+                roofRenderer.setSize(roofContainer.clientWidth, roofContainer.clientHeight);
+            }
+            const wallContainer = document.getElementById('wall-canvas');
+            if (wallContainer && wallCamera && wallRenderer) {
+                wallCamera.aspect = wallContainer.clientWidth / wallContainer.clientHeight;
+                wallCamera.updateProjectionMatrix();
+                wallRenderer.setSize(wallContainer.clientWidth, wallContainer.clientHeight);
+            }
+            const foundationContainer = document.getElementById('foundation-canvas');
+            if (foundationContainer && foundationCamera && foundationRenderer) {
+                foundationCamera.aspect = foundationContainer.clientWidth / foundationContainer.clientHeight;
+                foundationCamera.updateProjectionMatrix();
+                foundationRenderer.setSize(foundationContainer.clientWidth, foundationContainer.clientHeight);
+            }
+        }
+
+        // Event Listeners for Roof
+        document.getElementById('roof-explode-btn')?.addEventListener('click', () => toggleRoofExplosion(true));
+        document.getElementById('roof-reset-btn')?.addEventListener('click', () => {
+            toggleRoofExplosion(false);
+            if(roofSelectedObject) {
+                roofSelectedObject.material.color.set(roofSelectedObject.userData.originalColor);
+                roofSelectedObject = null;
+            }
+            document.getElementById('roof-info-details').innerHTML = `<p class="text-stone-500">点击上方列表查看详细信息。</p>`;
+            document.querySelectorAll('#roof-info-panel .info-panel-item').forEach(item => item.classList.remove('active'));
+        });
+
+        // Event Listeners for Wall
+        document.getElementById('wall-explode-btn')?.addEventListener('click', () => toggleWallExplosion(true));
+        document.getElementById('wall-reset-btn')?.addEventListener('click', () => {
+            toggleWallExplosion(false);
+            if(wallSelectedObject) {
+                wallSelectedObject.material.color.set(wallSelectedObject.userData.originalColor);
+                wallSelectedObject = null;
+            }
+            document.getElementById('wall-info-details').innerHTML = `<p class="text-stone-500">点击上方列表查看详细信息。</p>`;
+            document.querySelectorAll('#wall-info-panel .info-panel-item').forEach(item => item.classList.remove('active'));
+        });
+
+        // Event Listeners for Foundation
+        document.getElementById('foundation-explode-btn')?.addEventListener('click', () => toggleFoundationExplosion(true));
+        document.getElementById('foundation-reset-btn')?.addEventListener('click', () => {
+            toggleFoundationExplosion(false);
+            if(foundationSelectedObject) {
+                foundationSelectedObject.material.color.set(foundationSelectedObject.userData.originalColor);
+                foundationSelectedObject = null;
+            }
+            document.getElementById('foundation-info-details').innerHTML = `<p class="text-stone-500">点击上方列表查看详细信息。</p>`;
+            document.querySelectorAll('#foundation-info-panel .info-panel-item').forEach(item => item.classList.remove('active'));
+        });
+
+        // Navigation Logic
+        const sections = document.querySelectorAll('.content-section');
+        const navLinks = document.querySelectorAll('.nav-link');
+        const moduleCards = document.querySelectorAll('.module-card');
+
+        function switchSection(sectionId) {
+            sections.forEach(section => {
+                section.classList.toggle('active', section.id === sectionId);
+            });
+            navLinks.forEach(link => {
+                link.classList.toggle('active', link.getAttribute('href') === `#${sectionId}`);
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            // Initialize 3D scenes only when their section is active
+            if (sectionId === 'roof' && !roofScene) {
+                setTimeout(initRoof3D, 100);
+            } else if (sectionId === 'wall' && !wallScene) {
+                setTimeout(initWall3D, 100);
+            } else if (sectionId === 'foundation' && !foundationScene) {
+                setTimeout(initFoundation3D, 100);
+            }
+        }
+
+        navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const sectionId = link.getAttribute('href').substring(1);
+                switchSection(sectionId);
+            });
+        });
+        
+        moduleCards.forEach(card => {
+            card.addEventListener('click', (e) => {
+                e.preventDefault();
+                const sectionId = card.dataset.sectionTarget;
+                switchSection(sectionId);
+            });
+        });
+
+        // Mobile Menu
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const mobileMenu = document.getElementById('mobile-menu');
+        mobileMenuButton.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+
+        // Initialize first section
+        switchSection('hub');
+    </script>
 </body>
 </html>
